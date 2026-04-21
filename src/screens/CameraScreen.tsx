@@ -9,6 +9,7 @@ interface Props {
 export default function CameraScreen({ onNavigate }: Props) {
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [streamError, setStreamError] = useState(false);
   const liveStreamUrl = "http://192.168.4.1:81/stream";
 
   const handleCapture = async () => {
@@ -107,11 +108,22 @@ export default function CameraScreen({ onNavigate }: Props) {
           <img 
             src={liveStreamUrl} 
             alt="ESP32-CAM Stream" 
-            className="w-full h-full object-contain"
+            className={`w-full h-full object-contain \${streamError ? 'hidden' : 'block'}`}
             onError={(e) => {
-              (e.target as HTMLImageElement).src = "https://placehold.co/600x400/1e293b/0f172a?text=%F0%9F%93%B7%0AMJPEG+Stream+Active";
+              setStreamError(true);
             }}
           />
+          {streamError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-900 m-[0px] z-20">
+              <AlertCircle className="text-red-500 mb-2" size={32} />
+              <p className="text-red-400 font-bold mb-1 text-sm">Stream Blocked by Browser</p>
+              <p className="text-slate-300 text-[11px] leading-relaxed max-w-[250px]">
+                Because this app is hosted on an <b>HTTPS</b> website, your browser blocks the <b>HTTP</b> video stream for security.
+                <br/><br/>
+                <b>Fix:</b> Click the Padlock icon in your URL bar &rarr; Site Settings &rarr; set <b>Insecure Content</b> to <b>Allow</b>, then reload.
+              </p>
+            </div>
+          )}
         </div>
         
         {/* Controls Container */}

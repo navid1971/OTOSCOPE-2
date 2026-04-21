@@ -12,10 +12,12 @@ export default function WelcomeScreen({ onNavigate, username }: Props) {
   const [isConnected, setIsConnected] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [simulateConnection, setSimulateConnection] = useState(false); // Helps testing in HTTPS environments
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const handleConnect = async () => {
     setIsChecking(true);
     setStatus('Checking connection...');
+    setConnectionError(null);
     
     if (simulateConnection) {
       setTimeout(() => {
@@ -26,27 +28,49 @@ export default function WelcomeScreen({ onNavigate, username }: Props) {
       return;
     }
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
-      
-      // Perform HTTP GET request or ping to the ESP32-CAM IP
-      // Note: This relies on the browser being on the same network and might encounter
-      // mixed-content policies if the web app is hosted on HTTPS.
-      await fetch('http://192.168.4.1', { 
-        mode: 'no-cors',
-        signal: controller.signal 
-      });
-      
+    // Try an Image ping, which has slightly better behavior than fetch for edge cases.
+    const img = new Image();
+    let timeoutId: any;
+
+    img.onload = () => {
       clearTimeout(timeoutId);
       setIsConnected(true);
       setStatus('Device is ready for capture and live video');
-    } catch (error) {
-      setIsConnected(false);
-      setStatus('Connection failed. Please connect to the ESP Wi-Fi network.');
-    } finally {
+      setConnectionError(null);
       setIsChecking(false);
-    }
+    };
+
+    img.onerror = () => {
+      clearTimeout(timeoutId);
+      if (window.location.protocol === 'https:') {
+         setIsConnected(true);
+         setStatus('Ping bypassed (HTTPS connection)');
+         setConnectionError('Browser security blocked the ping due to HTTPS. If the camera breaks, click the Padlock icon in your URL bar > Site Settings > Allow Insecure Content.');
+      } else {
+         setIsConnected(false);
+         setStatus('Connection failed.');
+         setConnectionError('Ensure you are connected to the correct ESP32 Wi-Fi network.');
+      }
+      setIsChecking(false);
+    };
+
+    img.src = `http://192.168.4.1/favicon.ico?x=\${Math.floor(Math.random() * 1000000)}`;
+
+    timeoutId = setTimeout(() => {
+      img.src = '';
+      img.onerror = null;
+      img.onload = null;
+      if (window.location.protocol === 'https:') {
+         setIsConnected(true);
+         setStatus('Ping bypassed (HTTPS connection)');
+         setConnectionError('Browser security blocked the ping due to HTTPS. If the camera breaks, click the Padlock icon in your URL bar > Site Settings > Allow Insecure Content.');
+      } else {
+         setIsConnected(false);
+         setStatus('Connection timed out.');
+         setConnectionError('Ensure you are successfully connected to the ESP Wi-Fi network (192.168.4.1).');
+      }
+      setIsChecking(false);
+    }, 4000);
   };
 
   return (
@@ -72,19 +96,19 @@ export default function WelcomeScreen({ onNavigate, username }: Props) {
 
         <div className="flex flex-col gap-2 relative">
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">Hardware Status</p>
-          {isConnected ? (
+          {isConnected && !status.includes('bypassed') ? (
             <div className="bg-green-100 text-green-800 px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 mx-auto">
               <div className="w-2 h-2 rounded-full bg-green-500"></div> DEVICE READY: 192.168.4.1
             </div>
           ) : (
-            <p className={`text-lg font-medium \${status.includes('failed') ? 'text-red-500' : 'text-slate-800'}`}>
+            <p className={`text-lg font-medium \${status.includes('failed') ? 'text-red-500' : (status.includes('bypassed') ? 'text-amber-500' : 'text-slate-800')}`}>
               {status}
             </p>
           )}
-          {status.includes('failed') && (
-            <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-100 p-3 rounded-lg flex items-start gap-2 text-left">
+          {connectionError && (
+            <div className={`mt-2 text-xs border p-3 rounded-lg flex items-start gap-2 text-left \${status.includes('bypassed') ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-red-600 bg-red-50 border-red-100'}`}>
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-              <p>Ensure you are connected to the ESP32 Wi-Fi network. Note: Browser security policies might block local HTTP connections from an HTTPS website.</p>
+              <p>{connectionError}</p>
             </div>
           )}
         </div>
