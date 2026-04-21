@@ -1,0 +1,6 @@
+{
+  "name": "OTOSCOPE",
+  "description": "A prototype ENT medical camera interface that connects to a local ESP32-CAM Wi-Fi module.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
